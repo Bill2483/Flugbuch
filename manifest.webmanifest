@@ -1,0 +1,11 @@
+{
+  "name": "Flugbuch",
+  "short_name": "Flugbuch",
+  "lang": "de-CH",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#edf1f5",
+  "theme_color": "#1b5fc1",
+  "icons": [{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

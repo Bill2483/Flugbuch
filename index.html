@@ -1,0 +1,1640 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Flugbuch">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1b5fc1">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="color-scheme" content="light dark">
+<title>Flugbuch</title>
+<style>
+/* Layout: ein einspaltiges Logbuch. Oben die Gesamtflugzeit, darunter Erfassung, Einträge und Statistik mit wählbarem Zeitraum. */
+:root {
+  --bg: #edf1f5;
+  --surface: #ffffff;
+  --ink: #13233a;
+  --muted: #55657a;
+  --line: #d3dce6;
+  --accent: #1b5fc1;
+  --accent-ink: #ffffff;
+  --mag: #a8246a;
+  --danger: #b3261e;
+  --font-display: "Avenir Next Condensed", "HelveticaNeue-CondensedBold", "Arial Narrow", sans-serif;
+  --font-body: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  --font-data: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1722; --surface: #152232; --ink: #e6edf5; --muted: #93a3b8; --line: #263649;
+    --accent: #6aa4f2; --accent-ink: #0e1722; --mag: #e27bb0; --danger: #f2877f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1722; --surface: #152232; --ink: #e6edf5; --muted: #93a3b8; --line: #263649;
+  --accent: #6aa4f2; --accent-ink: #0e1722; --mag: #e27bb0; --danger: #f2877f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+}
+.wrap {
+  max-width: 920px; margin: 0 auto;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 20px;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+
+/* Kopf */
+.hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 32px; }
+.total { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.total .num { font-family: var(--font-display); font-weight: 700; font-size: clamp(56px, 16vw, 92px); line-height: .95; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.total .num small { font-size: .3em; font-weight: 500; color: var(--muted); margin-left: 8px; letter-spacing: .04em; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0; }
+.facts div { display: flex; flex-direction: column; min-width: 0; }
+.facts dt { font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.facts dd { margin: 0; font-family: var(--font-data); font-size: 18px; font-variant-numeric: tabular-nums; }
+
+/* Karten */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px; min-width: 0; }
+.panel h2 { font-size: 22px; }
+details.panel > summary { cursor: pointer; list-style: none; font-family: var(--font-display); font-size: 22px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+details.panel > summary::-webkit-details-marker { display: none; }
+details.panel > summary::after { content: "einklappen"; font-family: var(--font-body); font-size: 12px; font-weight: 400; color: var(--muted); letter-spacing: .04em; }
+details.panel:not([open]) > summary::after { content: "aufklappen"; }
+details.panel > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+/* Formular */
+form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); margin-top: 14px; }
+label, .lbl { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); letter-spacing: .04em; min-width: 0; }
+input, textarea, select, button { font: inherit; color: inherit; }
+input, textarea, select {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+  padding: 9px 10px; font-size: 15px; width: 100%; min-width: 0; color: var(--ink);
+}
+input.mono { font-family: var(--font-data); text-transform: uppercase; letter-spacing: .04em; }
+input.hm, input[type=time], input[type=date], input[type=number] { font-family: var(--font-data); }
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.span-all { grid-column: 1 / -1; }
+.grp-title { grid-column: 1 / -1; padding-top: 10px; border-top: 1px solid var(--line); }
+.grp-title:first-child { border-top: 0; padding-top: 0; }
+.hint { font-size: 12px; color: var(--muted); }
+.ac-add { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-end; margin-top: 8px; }
+.ac-add:empty { display: none; }
+.ac-add label { flex: 1 1 200px; }
+.form-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-top: 6px; }
+.dur { font-family: var(--font-data); font-size: 15px; color: var(--muted); margin-right: auto; font-variant-numeric: tabular-nums; }
+.dur b { color: var(--ink); font-weight: 500; }
+button { cursor: pointer; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); padding: 9px 16px; font-weight: 500; font-size: 14px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.ghost { background: transparent; }
+button.small { padding: 4px 10px; font-size: 13px; }
+button.warn { color: var(--danger); border-color: var(--danger); }
+button:disabled { opacity: .5; cursor: default; }
+#msg { min-height: 1.2em; font-size: 13px; color: var(--danger); }
+#msg.ok { color: var(--muted); }
+
+/* Auswahlschalter */
+.segs { display: flex; flex-wrap: wrap; }
+.seg { flex-direction: row; position: relative; font-size: 13px; letter-spacing: 0; color: var(--ink); }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; padding: 0; }
+.seg span { display: block; padding: 7px 14px; border: 1px solid var(--line); margin-left: -1px; background: var(--bg); cursor: pointer; font-weight: 500; }
+.seg:first-child span { border-radius: 4px 0 0 4px; margin-left: 0; }
+.seg:last-child span { border-radius: 0 4px 4px 0; }
+.seg input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; position: relative; z-index: 1; }
+.ap-grid { grid-column: 1 / -1; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+
+/* Liste */
+.list-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 6px; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.tools input { width: 190px; max-width: 100%; }
+.profile { display: flex; flex-wrap: wrap; gap: 10px 14px; margin: 8px 0 4px; }
+.profile label { flex: 1 1 180px; }
+ul.entries { list-style: none; margin: 0; padding: 0; }
+.entry { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 4px 14px; padding: 14px 0; border-top: 1px solid var(--line); align-items: start; }
+.entry:first-child { border-top: 0; }
+.date { display: flex; flex-direction: column; align-items: center; line-height: 1.05; }
+.date b { font-family: var(--font-display); font-size: 30px; font-weight: 600; }
+.date span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.route { font-family: var(--font-data); font-weight: 500; font-size: 18px; letter-spacing: .02em; }
+.route i { font-style: normal; color: var(--mag); padding: 0 6px; }
+.meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.meta .mono { font-family: var(--font-data); }
+.meta b { font-weight: 500; color: var(--ink); }
+.tot { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
+.tot b { font-family: var(--font-data); font-weight: 500; font-size: 18px; }
+.tot span { font-size: 12px; color: var(--muted); }
+.act { grid-column: 2 / -1; display: flex; gap: 8px; align-items: center; }
+.tag { font-size: 11px; border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; margin-left: 8px; font-family: var(--font-body); }
+.empty { padding: 22px 0 8px; color: var(--muted); }
+.empty b { color: var(--ink); font-weight: 600; }
+
+/* Statistik */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 26px 28px; margin-top: 16px; }
+.blk { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.blk h3 { font-size: 13px; font-family: var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+.ac { display: flex; flex-direction: column; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.ac li { display: grid; grid-template-columns: 96px minmax(0, 1fr) 58px; gap: 10px; align-items: center; }
+.ac .n { font-family: var(--font-data); font-size: 13px; overflow-wrap: anywhere; }
+.ac .bar { height: 8px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+.ac .bar i { display: block; height: 100%; background: var(--accent); }
+.ac .t { font-family: var(--font-data); font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
+.kv { display: flex; flex-direction: column; margin: 0; }
+.kv div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.kv div:last-child { border-bottom: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--font-data); font-variant-numeric: tabular-nums; text-align: right; }
+.note { font-size: 12px; color: var(--muted); }
+@media (max-width: 480px) {
+  .entry { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 4px 10px; }
+  .ac li { grid-template-columns: 84px minmax(0, 1fr) 52px; gap: 8px; }
+}
+@media (prefers-reduced-motion: no-preference) { button { transition: background .12s; } }
+
+/* iPhone */
+:root { color-scheme: light; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+input, textarea, select { font-size: 16px; }
+@media (pointer: coarse) { button { min-height: 42px; } button.small { min-height: 36px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="total">
+      <span class="eyebrow">Gesamtflugzeit (Block)</span>
+      <div class="num" id="total">0:00<small>h:min</small></div>
+    </div>
+    <dl class="facts">
+      <div><dt>Flüge</dt><dd id="s-count">0</dd></div>
+      <div><dt>Landungen</dt><dd id="s-ldg">0</dd></div>
+      <div><dt>Letzte 30 Tage</dt><dd id="s-30">0:00</dd></div>
+      <div><dt>Letzter Flug</dt><dd id="s-last">–</dd></div>
+    </dl>
+  </header>
+
+  <details class="panel" id="formbox" open>
+    <summary><span id="form-title">Neuer Flug</span></summary>
+    <form id="f" autocomplete="off">
+      <div class="grp-title eyebrow">Flug (Datum und Zeiten in UTC)</div>
+      <label>Datum<input type="date" id="f-date" required></label>
+      <label>Muster<input type="text" id="f-type" placeholder="A320" maxlength="24"></label>
+      <label>Kennzeichen<input class="mono" type="text" id="f-reg" placeholder="HB-JXA" maxlength="12"></label>
+      <label>Von (ICAO)<input class="mono" type="text" id="f-from" placeholder="LSZH" maxlength="4" required></label>
+      <label>Nach (ICAO)<input class="mono" type="text" id="f-to" placeholder="LEBL" maxlength="4" required></label>
+      <label>Off-Block (UTC)<input type="time" id="f-off" required></label>
+      <label>On-Block (UTC)<input type="time" id="f-on" required></label>
+
+      <div class="grp-title eyebrow">Funktion und Zeiten (h:mm)</div>
+      <div class="span-all lbl">Deine Funktion auf diesem Flug
+        <div class="segs" id="funcs" role="radiogroup" aria-label="Funktion">
+          <label class="seg"><input type="radio" name="func" value="pic"><span>PIC</span></label>
+          <label class="seg"><input type="radio" name="func" value="copi" checked><span>COPI</span></label>
+          <label class="seg"><input type="radio" name="func" value="dual"><span>Dual</span></label>
+          <label class="seg"><input type="radio" name="func" value="solo"><span>Solo</span></label>
+        </div>
+      </div>
+      <label>PIC<input class="hm" type="text" id="t-pic" inputmode="numeric" placeholder="0:00" maxlength="7"></label>
+      <label>COPI<input class="hm" type="text" id="t-copi" inputmode="numeric" placeholder="0:00" maxlength="7"></label>
+      <label>Dual<input class="hm" type="text" id="t-dual" inputmode="numeric" placeholder="0:00" maxlength="7"></label>
+      <label>Solo<input class="hm" type="text" id="t-solo" inputmode="numeric" placeholder="0:00" maxlength="7"></label>
+      <label>Nacht<input class="hm" type="text" id="t-night" inputmode="numeric" placeholder="0:00" maxlength="7"></label>
+      <label>IFR<input class="hm" type="text" id="t-ifr" inputmode="numeric" placeholder="0:00" maxlength="7"></label>
+      <label>Pilotentyp (für PDF)<select id="f-pt"><option value="mp">Multi-Pilot</option><option value="se">Single-Pilot SE</option><option value="me">Single-Pilot ME</option></select></label>
+      <label>Landungen Tag<input type="number" id="f-ld" min="0" max="99" value="1"></label>
+      <label>Landungen Nacht<input type="number" id="f-ln" min="0" max="99" value="0"></label>
+      <div class="span-all hint">Die Blockzeit wird der gewählten Funktion automatisch zugewiesen. Passe die Zeiten an, wenn du nur einen Teil geflogen bist, zum Beispiel als Ablösepilot. Vorgewählt ist COPI mit der vollen Blockzeit, bei Enlarged Crew mit 2/3 der Blockzeit. IFR wird automatisch mit der vollen Blockzeit eingetragen. Der Pilotentyp bestimmt, ob die Blockzeit im PDF als Multi-Pilot- oder als Single-Pilot-Zeit (SE/ME) erscheint.</div>
+      <div class="span-all hint" id="night-wrap"><span id="night-msg"></span> <button type="button" class="small ghost" id="night-calc">Nachtzeit neu berechnen</button><div class="ac-add" id="night-add"></div></div>
+
+      <div class="grp-title eyebrow">Crew</div>
+      <div class="span-all lbl">Enlarged Crew
+        <div class="segs" id="crews" role="radiogroup" aria-label="Besatzung">
+          <label class="seg"><input type="radio" name="crew" value="2" checked><span>Nein (2 Piloten)</span></label>
+          <label class="seg"><input type="radio" name="crew" value="3"><span>Ja (3 Piloten)</span></label>
+        </div>
+      </div>
+      <label>Name PIC<input type="text" id="f-picname" placeholder="SELF" maxlength="60"></label>
+      <label>Crew 2<input type="text" id="f-c2" maxlength="60"></label>
+      <label>Rolle Crew 2<select id="f-r2"><option value="">–</option><option value="F/O">F/O</option><option value="CRP">CRP</option></select></label>
+      <label id="c3box" hidden>Crew 3<input type="text" id="f-c3" maxlength="60"></label>
+      <label id="r3box" hidden>Rolle Crew 3<select id="f-r3"><option value="">–</option><option value="F/O">F/O</option><option value="CRP">CRP</option></select></label>
+
+      <div class="grp-title eyebrow">Betrieb</div>
+      <label>PAX<input type="number" id="f-pax" min="0" max="999" placeholder="0"></label>
+      <label>Fuel Burn (t)<input class="hm" type="text" id="f-fuel" inputmode="decimal" placeholder="0.0" maxlength="6"></label>
+
+      <div class="grp-title eyebrow">Anflüge</div>
+      <div class="ap-grid" id="ap"></div>
+
+      <div class="grp-title eyebrow">Bemerkung</div>
+      <label class="span-all">Bemerkung<textarea id="f-note" rows="2" maxlength="400" placeholder="Wetter, Übung, Besonderheiten …"></textarea></label>
+      <div class="form-foot">
+        <span class="dur">Block <b id="dur">0:00</b></span>
+        <button type="button" class="ghost" id="cancel" hidden>Abbrechen</button>
+        <button type="submit" class="primary" id="submit">Flug speichern</button>
+      </div>
+      <div class="span-all" id="msg" role="status" aria-live="polite"></div>
+    </form>
+  </details>
+
+  <section class="panel" aria-labelledby="list-title">
+    <div class="list-head">
+      <h2 id="list-title">Einträge</h2>
+      <div class="tools">
+        <input type="search" id="q" placeholder="Suchen (Flugplatz, Kennzeichen …)" aria-label="Einträge durchsuchen">
+        <button type="button" class="small primary" id="export-pdf">PDF exportieren</button>
+        <button type="button" class="small" id="export" hidden>CSV</button>
+        <button type="button" class="small" id="backup" hidden>Backup</button>
+        <button type="button" class="small" id="restore-btn">Backup laden</button>
+        <input type="file" id="restore" accept="application/json,.json" hidden>
+        <button type="button" class="small ghost" id="rm-examples" hidden>Beispiele entfernen</button>
+      </div>
+    </div>
+    <div class="profile">
+      <label>Name Pilot (für das PDF)<input type="text" id="p-name" maxlength="80" placeholder="Vorname Nachname"></label>
+      <label>Lizenznummer<input type="text" id="p-lic" maxlength="40" placeholder="CH.FCL.…"></label>
+    </div>
+    <div class="note" id="status">Lade Einträge …</div>
+    <ul class="entries" id="list"></ul>
+  </section>
+
+  <section class="panel" aria-labelledby="st-title">
+    <div class="list-head">
+      <h2 id="st-title">Statistiken</h2>
+      <div class="segs" id="period" role="radiogroup" aria-label="Zeitraum">
+        <label class="seg"><input type="radio" name="period" value="all" checked><span>Gesamt</span></label>
+        <label class="seg"><input type="radio" name="period" value="365"><span>12 Monate</span></label>
+        <label class="seg"><input type="radio" name="period" value="90"><span>90 Tage</span></label>
+        <label class="seg"><input type="radio" name="period" value="28"><span>28 Tage</span></label>
+      </div>
+    </div>
+    <div class="stats-grid" id="stats"></div>
+  </section>
+
+  <div class="note" id="store-note"></div>
+  <div class="note">Die Auswertungen sind eine Hilfe. Prüfe Eintragungen, Währung und Limits selbst anhand der geltenden EASA-Vorschriften.</div>
+</div>
+<script>
+/* Eigener PDF-Schreiber (Helvetica, Linien, Rechtecke, Text) und Dateiausgabe, ohne externe Bibliotheken */
+(function () {
+  var WR = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584, 761, 556, 761, 222, 556, 333, 1000, 556, 556, 333, 1000, 667, 333, 1000, 761, 611, 761, 761, 222, 222, 333, 333, 350, 556, 1000, 333, 1000, 500, 333, 944, 761, 500, 667, 278, 333, 556, 556, 556, 556, 260, 556, 333, 737, 370, 556, 584, 333, 737, 333, 400, 584, 333, 333, 333, 556, 537, 278, 333, 333, 365, 556, 834, 834, 834, 611, 667, 667, 667, 667, 667, 667, 1000, 722, 667, 667, 667, 667, 278, 278, 278, 278, 722, 722, 778, 778, 778, 778, 778, 584, 778, 722, 722, 722, 722, 667, 667, 611, 556, 556, 556, 556, 556, 556, 889, 500, 556, 556, 556, 556, 278, 278, 278, 278, 556, 556, 556, 556, 556, 556, 556, 584, 611, 556, 556, 556, 556, 500, 556, 500];
+  var WB = [278, 333, 474, 556, 556, 889, 722, 238, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 333, 333, 584, 584, 584, 611, 975, 722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 333, 278, 333, 584, 556, 333, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889, 611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, 389, 280, 389, 584, 761, 556, 761, 278, 556, 500, 1000, 556, 556, 333, 1000, 667, 333, 1000, 761, 611, 761, 761, 278, 278, 500, 500, 350, 556, 1000, 333, 1000, 556, 333, 944, 761, 500, 667, 278, 333, 556, 556, 556, 556, 280, 556, 333, 737, 370, 556, 584, 333, 737, 333, 400, 584, 333, 333, 333, 611, 556, 278, 333, 333, 365, 556, 834, 834, 834, 611, 722, 722, 722, 722, 722, 722, 1000, 722, 667, 667, 667, 667, 278, 278, 278, 278, 722, 722, 778, 778, 778, 778, 778, 584, 778, 722, 722, 722, 722, 667, 667, 611, 556, 556, 556, 556, 556, 556, 889, 556, 556, 556, 556, 556, 278, 278, 278, 278, 611, 611, 611, 611, 611, 611, 611, 584, 611, 611, 611, 611, 611, 556, 611, 556];
+  var CP = { 0x20AC: 128, 0x201A: 130, 0x0192: 131, 0x201E: 132, 0x2026: 133, 0x2020: 134, 0x2021: 135, 0x02C6: 136, 0x2030: 137, 0x0160: 138, 0x2039: 139, 0x0152: 140, 0x017D: 142, 0x2018: 145, 0x2019: 146, 0x201C: 147, 0x201D: 148, 0x2022: 149, 0x2013: 150, 0x2014: 151, 0x02DC: 152, 0x2122: 153, 0x0161: 154, 0x203A: 155, 0x0153: 156, 0x017E: 158, 0x0178: 159 };
+  var K = 72 / 25.4, PW = 297 * K, PH = 210 * K;
+  function code(ch) { var c = ch.charCodeAt(0); if (c < 256) return c < 32 ? 63 : c; return CP[c] || 63; }
+  function f3(x) { return String(Math.round(x * 1000) / 1000); }
+  function col(c) { return c.map(function (v) { return f3(v / 255); }).join(" "); }
+  function esc(s) {
+    var o = "";
+    for (var i = 0; i < s.length; i++) {
+      var c = code(s[i]);
+      if (c === 40 || c === 41 || c === 92) o += "\\" + String.fromCharCode(c);
+      else if (c < 32 || c > 126) o += "\\" + ("00" + c.toString(8)).slice(-3);
+      else o += String.fromCharCode(c);
+    }
+    return o;
+  }
+  function sw(s, bold, fs) {
+    var W = bold ? WB : WR, t = 0;
+    for (var i = 0; i < s.length; i++) t += W[code(s[i]) - 32] || 556;
+    return t * fs / 1000 * 25.4 / 72;
+  }
+  function MiniPdf() {
+    this.pages = [[]]; this.fs = 10; this.bold = false;
+    this.tc = [0, 0, 0]; this.dc = [0, 0, 0]; this.fc = [0, 0, 0]; this.lw = 0.2;
+  }
+  var P = MiniPdf.prototype;
+  P.setFont = function (n, st) { this.bold = /bold/i.test(st || ""); };
+  P.setFontSize = function (s) { this.fs = s; };
+  P.setTextColor = function (r, g, b) { this.tc = [r, g, b]; };
+  P.setDrawColor = function (r, g, b) { this.dc = [r, g, b]; };
+  P.setFillColor = function (r, g, b) { this.fc = [r, g, b]; };
+  P.setLineWidth = function (w) { this.lw = w; };
+  P.cur = function () { return this.pages[this.pages.length - 1]; };
+  P.addPage = function () { this.pages.push([]); };
+  P.text = function (t, x, y, o) {
+    t = String(t);
+    var w = sw(t, this.bold, this.fs);
+    if (o && o.align === "center") x -= w / 2; else if (o && o.align === "right") x -= w;
+    this.cur().push(col(this.tc) + " rg BT /" + (this.bold ? "F2" : "F1") + " " + f3(this.fs) + " Tf " + f3(x * K) + " " + f3(PH - y * K) + " Td (" + esc(t) + ") Tj ET");
+  };
+  P.line = function (x1, y1, x2, y2) {
+    this.cur().push(col(this.dc) + " RG " + f3(this.lw * K) + " w " + f3(x1 * K) + " " + f3(PH - y1 * K) + " m " + f3(x2 * K) + " " + f3(PH - y2 * K) + " l S");
+  };
+  P.rect = function (x, y, w, h, style) {
+    var geo = f3(x * K) + " " + f3(PH - (y + h) * K) + " " + f3(w * K) + " " + f3(h * K) + " re";
+    if (style === "F") this.cur().push(col(this.fc) + " rg " + geo + " f");
+    else this.cur().push(col(this.dc) + " RG " + f3(this.lw * K) + " w " + geo + " S");
+  };
+  P.splitTextToSize = function (text, maxW) {
+    var words = String(text).split(/\s+/).filter(Boolean), out = [], line = "", bold = this.bold, fs = this.fs;
+    if (!words.length) return [""];
+    words.forEach(function (word) {
+      var cand = line ? line + " " + word : word;
+      if (sw(cand, bold, fs) <= maxW) { line = cand; return; }
+      if (line) { out.push(line); line = ""; }
+      if (sw(word, bold, fs) <= maxW) { line = word; return; }
+      var cur = "";
+      for (var i = 0; i < word.length; i++) {
+        if (cur && sw(cur + word[i], bold, fs) > maxW) { out.push(cur); cur = word[i]; } else cur += word[i];
+      }
+      line = cur;
+    });
+    if (line) out.push(line);
+    return out;
+  };
+  P.output = function () {
+    var o = [], kids = [];
+    o[0] = "<< /Type /Catalog /Pages 2 0 R >>";
+    o[1] = "";
+    o[2] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
+    o[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>";
+    this.pages.forEach(function (ops) {
+      var pn = o.length + 1, cn = o.length + 2, content = ops.join("\n");
+      kids.push(pn + " 0 R");
+      o.push("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + f3(PW) + " " + f3(PH) + "] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents " + cn + " 0 R >>");
+      o.push("<< /Length " + content.length + " >>\nstream\n" + content + "\nendstream");
+    });
+    o[1] = "<< /Type /Pages /Kids [" + kids.join(" ") + "] /Count " + kids.length + " >>";
+    var s = "%PDF-1.4\n", offs = [];
+    o.forEach(function (b, i) { offs.push(s.length); s += (i + 1) + " 0 obj\n" + b + "\nendobj\n"; });
+    var xr = s.length;
+    s += "xref\n0 " + (o.length + 1) + "\n0000000000 65535 f \n";
+    offs.forEach(function (p) { s += ("0000000000" + p).slice(-10) + " 00000 n \n"; });
+    s += "trailer\n<< /Size " + (o.length + 1) + " /Root 1 0 R >>\nstartxref\n" + xr + "\n%%EOF";
+    var u = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i) & 255;
+    return u.buffer;
+  };
+  window.jspdf = { jsPDF: MiniPdf };
+
+  /* Dateiausgabe: iOS-Teilen-Menü, sonst Download */
+  window.__dl = {
+    save: async function (o) {
+      var name = o.filename, type = /\.pdf$/i.test(name) ? "application/pdf" : /\.json$/i.test(name) ? "application/json" : "text/csv";
+      var blob = new Blob([o.data], { type: type });
+      try {
+        if (navigator.canShare && navigator.share) {
+          var file = new File([blob], name, { type: type });
+          if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return { status: "saved" }; }
+        }
+      } catch (e) {
+        if (e && e.name === "AbortError") throw { code: "declined" };
+      }
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+      return { status: "saved" };
+    }
+  };
+})();
+
+</script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var flights = [];
+  var editingId = null;
+  var confirmId = null;
+  var funcAuto = true, ifrAuto = true, nightAuto = true;
+  var db = null, downloads = window.__dl, canWrite = true;
+  var LS_KEY = "flugbuch.v2", LS_PROFILE = "flugbuch.profile";
+  var FUNCS = ["pic", "copi", "dual", "solo"];
+  var APPR = [
+    ["ils1", "ILS CAT I", "ILS I"], ["ils23", "ILS CAT II/III", "ILS II/III"], ["loc", "LOC", "LOC"],
+    ["rnp", "RNP / RNAV (GNSS)", "RNP"], ["vor", "VOR", "VOR"], ["ndb", "NDB", "NDB"],
+    ["vis", "Sichtanflug", "VIS"], ["circ", "Circling", "CIRC"], ["ga", "Fehlanflug", "GA"]
+  ];
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function n(x) { return typeof x === "number" && isFinite(x) ? x : 0; }
+  function fmt(min) { min = Math.round(n(min)); var h = Math.floor(min / 60), m = min % 60; return h + ":" + (m < 10 ? "0" : "") + m; }
+  function ft(x) { return (Math.round(n(x) * 10) / 10).toFixed(1); }
+  function minutes(off, on) {
+    if (!off || !on) return 0;
+    var a = off.split(":").map(Number), b = on.split(":").map(Number);
+    var m = (b[0] * 60 + b[1]) - (a[0] * 60 + a[1]);
+    if (m < 0) m += 1440;
+    return m;
+  }
+  function parseHM(s) {
+    s = String(s || "").trim();
+    if (!s) return 0;
+    var m = /^(\d{1,3}):([0-5]\d)$/.exec(s);
+    return m ? (+m[1]) * 60 + (+m[2]) : NaN;
+  }
+  function todayIso() {
+    var d = new Date(), p = function (k) { return (k < 10 ? "0" : "") + k; };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  }
+  function parseDate(s) { var a = (s || "").split("-").map(Number); return new Date(a[0], (a[1] || 1) - 1, a[2] || 1); }
+  function newId() { return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function desc(x, y) { var k = (y.date || "").localeCompare(x.date || ""); return k !== 0 ? k : (y.off || "").localeCompare(x.off || ""); }
+  function asc(x, y) { return desc(y, x); }
+  function ldgs(f) { if (f.ldgDay != null || f.ldgNight != null) return [n(f.ldgDay), n(f.ldgNight)]; return [n(f.ldg), 0]; }
+  function crewOthers(f) {
+    var out = [];
+    [[f.crew2Role, f.crew2], [f.crew3Role, f.crew3]].forEach(function (p) {
+      if (p[0] || p[1]) out.push(((p[0] ? p[0] + " " : "") + (p[1] || "")).trim());
+    });
+    return out;
+  }
+  function apprText(f, short) {
+    var a = f.appr || {}, out = [];
+    APPR.forEach(function (p) { var c = n(a[p[0]]); if (c > 0) out.push((short ? p[2] : p[1]) + (c > 1 ? " ×" + c : "")); });
+    return out.join(", ");
+  }
+  function checked(name) { var el = document.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : ""; }
+  function setRadio(name, val) { var el = document.querySelector('input[name="' + name + '"][value="' + val + '"]'); if (el) el.checked = true; }
+
+  /* Statistik */
+  function stats(list) {
+    var S = { count: list.length, minutes: 0, pic: 0, copi: 0, dual: 0, solo: 0, night: 0, ifr: 0, ldD: 0, ldN: 0,
+      pax: 0, paxFlights: 0, fuel: 0, fuelFlights: 0, fuelMin: 0, enl: 0, enlMin: 0, appr: {}, apprTotal: 0, byAc: {} };
+    list.forEach(function (f) {
+      var blk = n(f.minutes);
+      S.minutes += blk;
+      ["pic", "copi", "dual", "solo", "night", "ifr"].forEach(function (k) { S[k] += n(f[k]); });
+      var l = ldgs(f); S.ldD += l[0]; S.ldN += l[1];
+      if (f.crew === 3) { S.enl++; S.enlMin += blk; }
+      if (n(f.pax) > 0) { S.pax += f.pax; S.paxFlights++; }
+      if (n(f.fuel) > 0) { S.fuel += f.fuel; S.fuelFlights++; S.fuelMin += blk; }
+      var a = f.appr || {};
+      APPR.forEach(function (p) { var c = n(a[p[0]]); if (c > 0) { S.appr[p[0]] = (S.appr[p[0]] || 0) + c; S.apprTotal += c; } });
+      var k = f.reg || f.type || "ohne Angabe";
+      S.byAc[k] = (S.byAc[k] || 0) + blk;
+    });
+    return S;
+  }
+  function barRows(rows, fmtVal) {
+    var max = 0; rows.forEach(function (r) { if (r[1] > max) max = r[1]; });
+    if (!max) max = 1;
+    return '<ul class="ac">' + rows.map(function (r) {
+      return '<li><span class="n">' + esc(r[0]) + '</span><span class="bar"><i style="width:' + Math.round(r[1] / max * 100) + '%"></i></span><span class="t">' + fmtVal(r[1]) + "</span></li>";
+    }).join("") + "</ul>";
+  }
+  function kv(rows) {
+    return '<dl class="kv">' + rows.map(function (r) { return "<div><dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd></div>"; }).join("") + "</dl>";
+  }
+  function renderStats() {
+    var per = checked("period") || "all", list = flights;
+    if (per !== "all") {
+      var cut = new Date(); cut.setDate(cut.getDate() - parseInt(per, 10)); cut.setHours(0, 0, 0, 0);
+      list = flights.filter(function (f) { return parseDate(f.date) >= cut; });
+    }
+    var S = stats(list);
+    if (!S.count) { $("stats").innerHTML = '<div class="note">Im gewählten Zeitraum gibt es keine Flüge.</div>'; return; }
+    var times = barRows([["Block", S.minutes], ["PIC", S.pic], ["COPI", S.copi], ["Dual", S.dual], ["Solo", S.solo], ["Nacht", S.night], ["IFR", S.ifr]], fmt);
+    var ops = kv([
+      ["Flüge", S.count],
+      ["Landungen Tag / Nacht", S.ldD + " / " + S.ldN],
+      ["Enlarged Crew", S.enl ? S.enl + " Flüge · " + fmt(S.enlMin) : "–"],
+      ["PAX gesamt", S.pax || "–"],
+      ["Ø PAX pro Flug", S.paxFlights ? Math.round(S.pax / S.paxFlights) : "–"],
+      ["Fuel Burn gesamt", S.fuelFlights ? ft(S.fuel) + " t" : "–"],
+      ["Ø Fuel pro Flug", S.fuelFlights ? ft(S.fuel / S.fuelFlights) + " t" : "–"],
+      ["Fuel pro Blockstunde", S.fuelMin ? ft(S.fuel / (S.fuelMin / 60)) + " t/h" : "–"]
+    ]);
+    var ap = APPR.map(function (p) { return [p[2], S.appr[p[0]] || 0]; }).filter(function (r) { return r[1] > 0; });
+    var apHtml = ap.length ? kv([["Anflüge gesamt", S.apprTotal]]) + barRows(ap, function (v) { return v; }) : '<div class="note">Noch keine Anflüge erfasst.</div>';
+    var ac = Object.keys(S.byAc).sort(function (a, b) { return S.byAc[b] - S.byAc[a]; }).slice(0, 8).map(function (k) { return [k, S.byAc[k]]; });
+    $("stats").innerHTML =
+      '<div class="blk"><h3>Flugzeit nach Funktion</h3>' + times + "</div>" +
+      '<div class="blk"><h3>Betrieb</h3>' + ops + "</div>" +
+      '<div class="blk"><h3>Anflugarten</h3>' + apHtml + "</div>" +
+      '<div class="blk"><h3>Flugzeit nach Flugzeug</h3>' + barRows(ac, fmt) + "</div>";
+  }
+
+  /* Liste */
+  function render() {
+    var all = flights.slice().sort(desc);
+    var total = 0, ldg = 0, last30 = 0;
+    var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30); cutoff.setHours(0, 0, 0, 0);
+    all.forEach(function (f) {
+      total += n(f.minutes); var l = ldgs(f); ldg += l[0] + l[1];
+      if (parseDate(f.date) >= cutoff) last30 += n(f.minutes);
+    });
+    $("total").innerHTML = fmt(total) + "<small>h:min</small>";
+    $("s-count").textContent = all.length;
+    $("s-ldg").textContent = ldg;
+    $("s-30").textContent = fmt(last30);
+    $("s-last").textContent = all.length ? parseDate(all[0].date).toLocaleDateString("de-CH") : "–";
+
+    var q = $("q").value.trim().toLowerCase();
+    var shown = !q ? all : all.filter(function (f) {
+      return [f.from, f.to, f.reg, f.type, f.note, f.date, f.picName, crewOthers(f).join(" "), apprText(f, true)].join(" ").toLowerCase().indexOf(q) >= 0;
+    });
+    var list = $("list");
+    if (!shown.length) {
+      list.innerHTML = '<li class="empty">' + (all.length
+        ? "Keine Einträge zu dieser Suche."
+        : "<b>Noch kein Flug erfasst.</b> Trage oben Datum, Strecke und Zeiten ein, die Blockzeit wird automatisch berechnet.") + "</li>";
+    } else {
+      list.innerHTML = shown.map(function (f) {
+        var d = parseDate(f.date);
+        var mon = d.toLocaleDateString("de-CH", { month: "short" }).replace(".", "");
+        var yr = String(d.getFullYear()).slice(2);
+        var l = ldgs(f);
+        var m1 = [[f.type, f.reg].filter(Boolean).map(esc).join(" · "), '<span class="mono">' + esc(f.off) + "–" + esc(f.on) + " UTC</span>", f.crew === 3 ? "Enlarged Crew" : ""].filter(Boolean).join(" · ");
+        var fn = [];
+        FUNCS.forEach(function (k) { if (n(f[k]) > 0) fn.push("<b>" + k.toUpperCase() + "</b> " + fmt(f[k])); });
+        if (n(f.night) > 0) fn.push("Nacht " + fmt(f.night));
+        if (n(f.ifr) > 0) fn.push("IFR " + fmt(f.ifr));
+        var ops = [];
+        if (n(f.pax) > 0) ops.push(f.pax + " PAX");
+        if (n(f.fuel) > 0) ops.push(ft(f.fuel) + " t Fuel");
+        var ap = apprText(f);
+        if (ap) ops.push(esc(ap));
+        var crew = [];
+        if (f.picName) crew.push("PIC " + esc(f.picName));
+        var others = crewOthers(f).map(esc).join(", ");
+        if (others) crew.push("Crew " + others);
+        var lines = [m1, fn.join(" · "), ops.join(" · "), crew.join(" · "), f.note ? esc(f.note) : ""].filter(Boolean);
+        var actions = "";
+        if (canWrite) {
+          actions = '<div class="act">' +
+            '<button type="button" class="small" data-edit="' + esc(f.id) + '">Bearbeiten</button>' +
+            (confirmId === f.id
+              ? '<button type="button" class="small warn" data-del="' + esc(f.id) + '">Wirklich löschen?</button><button type="button" class="small ghost" data-keep="1">Behalten</button>'
+              : '<button type="button" class="small ghost" data-ask="' + esc(f.id) + '">Löschen</button>') +
+            "</div>";
+        }
+        return '<li class="entry">' +
+          '<div class="date"><b>' + d.getDate() + "</b><span>" + esc(mon) + " " + yr + "</span></div>" +
+          '<div><div class="route">' + esc(f.from) + "<i>→</i>" + esc(f.to) +
+          (f.example ? '<span class="tag">Beispiel</span>' : "") + "</div>" +
+          lines.map(function (t) { return '<div class="meta">' + t + "</div>"; }).join("") + "</div>" +
+          '<div class="tot"><b>' + fmt(f.minutes) + "</b><span>" + l[0] + " T / " + l[1] + " N</span></div>" +
+          actions + "</li>";
+      }).join("");
+    }
+
+    $("rm-examples").hidden = !(canWrite && flights.some(function (f) { return f.example; }));
+    $("export").hidden = !downloads || !flights.length;
+    $("export-pdf").hidden = !downloads || !flights.length;
+    $("backup").hidden = !flights.length;
+    $("form-title").textContent = editingId ? "Flug bearbeiten" : "Neuer Flug";
+    $("submit").textContent = editingId ? "Änderungen speichern" : "Flug speichern";
+    $("cancel").hidden = !editingId;
+    $("formbox").hidden = !canWrite;
+    renderStats();
+  }
+
+  /* Formular */
+  function applyAuto() {
+    var blk = minutes($("f-off").value, $("f-on").value);
+    $("dur").textContent = fmt(blk);
+    if (funcAuto) {
+      var sel = checked("func");
+      var fm = checked("crew") === "3" ? Math.round(blk * 2 / 3) : blk;
+      FUNCS.forEach(function (k) { $("t-" + k).value = (k === sel && fm) ? fmt(fm) : ""; });
+    }
+    if (ifrAuto) $("t-ifr").value = blk ? fmt(blk) : "";
+    if (nightAuto) updateNight();
+  }
+  function crewVis() { var h = checked("crew") !== "3"; $("c3box").hidden = h; $("r3box").hidden = h; }
+  function setMsg(t, ok) { var m = $("msg"); m.textContent = t || ""; m.className = ok ? "ok" : ""; }
+  function resetForm() {
+    editingId = null; funcAuto = true; ifrAuto = true; nightAuto = true;
+    $("f").reset();
+    $("f-date").value = todayIso();
+    applyAuto(); crewVis(); setMsg("");
+  }
+
+  function collect() {
+    var off = $("f-off").value, on = $("f-on").value, blk = minutes(off, on);
+    var from = $("f-from").value.trim().toUpperCase(), to = $("f-to").value.trim().toUpperCase();
+    if (!$("f-date").value || !from || !to) return { err: "Bitte Datum, Start- und Zielflugplatz angeben." };
+    if (!blk) return { err: "Off-Block und On-Block dürfen nicht gleich sein." };
+    var t = {};
+    var defs = [["pic", "PIC"], ["copi", "COPI"], ["dual", "Dual"], ["solo", "Solo"], ["night", "Nacht"], ["ifr", "IFR"]];
+    for (var i = 0; i < defs.length; i++) {
+      var v = parseHM($("t-" + defs[i][0]).value);
+      if (isNaN(v)) return { err: defs[i][1] + ": Bitte die Zeit als h:mm eingeben, zum Beispiel 1:25." };
+      if (v > blk) return { err: defs[i][1] + " darf nicht länger als die Blockzeit sein." };
+      t[defs[i][0]] = v;
+    }
+    if (t.pic + t.copi + t.dual + t.solo > blk) return { err: "PIC, COPI, Dual und Solo zusammen dürfen die Blockzeit nicht übersteigen." };
+    var fs = $("f-fuel").value.trim().replace(",", ".");
+    var fuel = fs === "" ? 0 : parseFloat(fs);
+    if (isNaN(fuel) || fuel < 0) return { err: "Fuel Burn bitte in Tonnen angeben, zum Beispiel 4.6." };
+    var appr = {};
+    document.querySelectorAll("[data-ap]").forEach(function (el) { var c = parseInt(el.value, 10) || 0; if (c > 0) appr[el.getAttribute("data-ap")] = c; });
+    var crew = checked("crew") === "3" ? 3 : 2;
+    var f = {
+      id: editingId || newId(),
+      date: $("f-date").value, type: $("f-type").value.trim(), reg: $("f-reg").value.trim().toUpperCase(),
+      from: from, to: to, off: off, on: on, minutes: blk,
+      pic: t.pic, copi: t.copi, dual: t.dual, solo: t.solo, night: t.night, ifr: t.ifr,
+      pilotType: $("f-pt").value,
+      ldgDay: Math.max(0, parseInt($("f-ld").value, 10) || 0), ldgNight: Math.max(0, parseInt($("f-ln").value, 10) || 0),
+      crew: crew, picName: $("f-picname").value.trim(), crew2: $("f-c2").value.trim(), crew3: crew === 3 ? $("f-c3").value.trim() : "",
+      crew2Role: $("f-r2").value, crew3Role: crew === 3 ? $("f-r3").value : "",
+      pax: Math.max(0, parseInt($("f-pax").value, 10) || 0), fuel: Math.round(fuel * 10) / 10,
+      appr: appr, note: $("f-note").value.trim()
+    };
+    return { f: f };
+  }
+
+  function loadForm(f) {
+    editingId = f.id; funcAuto = false; ifrAuto = false; nightAuto = false;
+    $("f-date").value = f.date; $("f-type").value = f.type || ""; $("f-reg").value = f.reg || "";
+    $("f-from").value = f.from; $("f-to").value = f.to; $("f-off").value = f.off; $("f-on").value = f.on;
+    var best = "pic", bv = -1;
+    FUNCS.forEach(function (k) { $("t-" + k).value = n(f[k]) > 0 ? fmt(f[k]) : ""; if (n(f[k]) > bv) { bv = n(f[k]); best = k; } });
+    setRadio("func", best);
+    $("t-night").value = n(f.night) > 0 ? fmt(f.night) : "";
+    $("t-ifr").value = n(f.ifr) > 0 ? fmt(f.ifr) : "";
+    var l = ldgs(f); $("f-ld").value = l[0]; $("f-ln").value = l[1];
+    $("f-pt").value = f.pilotType || "mp";
+    setRadio("crew", f.crew === 3 ? "3" : "2");
+    $("f-picname").value = f.picName || ""; $("f-c2").value = f.crew2 || ""; $("f-c3").value = f.crew3 || "";
+    $("f-r2").value = f.crew2Role || ""; $("f-r3").value = f.crew3Role || "";
+    $("f-pax").value = n(f.pax) > 0 ? f.pax : ""; $("f-fuel").value = n(f.fuel) > 0 ? ft(f.fuel) : "";
+    document.querySelectorAll("[data-ap]").forEach(function (el) { el.value = n((f.appr || {})[el.getAttribute("data-ap")]); });
+    $("f-note").value = f.note || "";
+    $("dur").textContent = fmt(f.minutes);
+    $("night-msg").textContent = NIGHT_INFO; $("night-add").innerHTML = "";
+    crewVis(); setMsg("");
+  }
+
+  /* Speicherung: gemeinsamer Datenspeicher, sonst dieser Browser */
+  function localSave() { try { localStorage.setItem(LS_KEY, JSON.stringify(flights)); } catch (e) {} }
+  function body(f) { var o = {}; Object.keys(f).forEach(function (k) { if (k !== "id") o[k] = f[k]; }); return o; }
+  async function put(f) {
+    if (db) { await db.collection("flights").doc(f.id).set(body(f)); }
+    else {
+      var i = flights.findIndex(function (x) { return x.id === f.id; });
+      if (i >= 0) flights[i] = f; else flights.push(f);
+      localSave();
+    }
+  }
+  async function remove(id) {
+    if (db) { await db.collection("flights").doc(id).delete(); }
+    else { flights = flights.filter(function (x) { return x.id !== id; }); localSave(); }
+  }
+  function errText(e) {
+    var c = e && e.code;
+    if (c === "quota_exceeded") return "Der Speicher ist voll. Lösche alte Einträge und versuche es erneut.";
+    if (c === "invalid_argument") return "Du hast keine Schreibrechte für dieses Flugbuch.";
+    return "Speichern hat nicht geklappt. Versuche es gleich noch einmal.";
+  }
+
+  /* Nachtzeit: Flugplatzdaten, Sonnenstand, Grosskreisroute */
+  var NIGHT_INFO = "Die Nachtzeit wird aus Route, Datum und Zeiten berechnet (Sonne mehr als 6° unter dem Horizont, also zwischen Ende der bürgerlichen Abend- und Beginn der Morgendämmerung).";
+  var AP_DATA = `
+LSZH 47.458 8.548
+LSGG 46.238 6.109
+LSZB 46.914 7.497
+LSZA 46.004 8.911
+LSZR 47.485 9.560
+LSZG 47.181 7.417
+LSZC 46.974 8.397
+LSGS 46.220 7.327
+LSMD 47.398 8.648
+LSZS 46.534 9.884
+EDDF 50.033 8.571
+EDDM 48.354 11.786
+EDDB 52.362 13.501
+EDDH 53.630 9.988
+EDDK 50.866 7.143
+EDDL 51.289 6.767
+EDDS 48.690 9.222
+EDDN 49.499 11.067
+EDDV 52.462 9.685
+EDDW 53.047 8.787
+EDDP 51.432 12.242
+EDDC 51.134 13.767
+EDDR 49.215 7.110
+EDDG 52.134 7.685
+LOWW 48.110 16.570
+LOWS 47.793 13.004
+LOWI 47.260 11.344
+LOWG 46.991 15.439
+LOWK 46.643 14.337
+LOWL 48.233 14.188
+LFPG 49.010 2.548
+LFPO 48.723 2.379
+LFMN 43.665 7.215
+LFML 43.436 5.215
+LFLL 45.726 5.091
+LFBO 43.629 1.364
+LFBD 44.828 -0.716
+LFSB 47.590 7.529
+LFRS 47.153 -1.611
+LFST 48.538 7.628
+LFPB 48.969 2.441
+LFRB 48.448 -4.419
+LFMT 43.576 3.963
+LFKJ 41.924 8.803
+LFKB 42.553 9.484
+LFLB 45.638 5.880
+LFLS 45.363 5.330
+LFTH 43.097 6.146
+LFMP 42.740 2.871
+LFRN 48.069 -1.735
+LFOB 49.454 2.113
+LIRF 41.800 12.239
+LIMC 45.630 8.723
+LIML 45.445 9.277
+LIPZ 45.505 12.352
+LIRN 40.886 14.291
+LIPE 44.535 11.289
+LIRA 41.799 12.595
+LIME 45.669 9.704
+LICC 37.467 15.066
+LICJ 38.176 13.091
+LIMF 45.200 7.650
+LIRP 43.684 10.393
+LIPH 45.648 12.194
+LIBD 41.139 16.760
+LIRQ 43.810 11.205
+LIPX 45.396 10.888
+LIEA 40.632 8.291
+LIEE 39.251 9.054
+LIBR 40.658 17.947
+LEMD 40.472 -3.561
+LEBL 41.297 2.078
+LEPA 39.552 2.739
+LEMG 36.675 -4.499
+LEAL 38.282 -0.558
+LEZL 37.418 -5.893
+LEVC 39.489 -0.482
+LEIB 38.873 1.373
+LEBB 43.301 -2.911
+LEST 42.896 -8.415
+LEGE 41.901 2.760
+GCLP 27.932 -15.387
+GCTS 28.044 -16.573
+GCRR 28.945 -13.605
+GCXO 28.483 -16.341
+GCFV 28.453 -13.864
+LEMH 39.860 4.219
+LEGR 37.189 -3.777
+LEXJ 43.427 -3.820
+LEJR 36.744 -6.060
+LEAS 43.563 -6.034
+LERS 41.147 1.167
+LPPT 38.774 -9.134
+LPPR 41.242 -8.678
+LPFR 37.014 -7.966
+LPMA 32.698 -16.774
+LPPD 37.741 -25.698
+EGLL 51.470 -0.454
+EGKK 51.148 -0.190
+EGSS 51.885 0.235
+EGLC 51.505 0.055
+EGCC 53.354 -2.275
+EGBB 52.454 -1.748
+EGPH 55.950 -3.373
+EGPF 55.872 -4.433
+EGGW 51.875 -0.368
+EGNX 52.831 -1.328
+EGGD 51.383 -2.719
+EGNM 53.866 -1.661
+EGAA 54.658 -6.216
+EIDW 53.421 -6.270
+EICK 51.841 -8.491
+EINN 52.702 -8.925
+EGPD 57.202 -2.198
+EGHI 50.950 -1.357
+EGNT 55.038 -1.692
+EGGP 53.334 -2.850
+EGPK 55.509 -4.587
+EGJJ 49.208 -2.195
+EHAM 52.309 4.764
+EBBR 50.901 4.484
+ELLX 49.623 6.204
+EBLG 50.637 5.443
+EHRD 51.957 4.440
+EHEH 51.450 5.375
+EBCI 50.459 4.454
+EKCH 55.618 12.656
+ESSA 59.652 17.919
+ESGG 57.663 12.280
+ENGM 60.194 11.100
+ENBR 60.294 5.218
+ENVA 63.458 10.924
+EFHK 60.317 24.963
+BIKF 63.985 -22.605
+BIRK 64.130 -21.941
+EKBI 55.740 9.152
+ENZV 58.877 5.638
+ENTC 69.683 18.919
+EFRO 66.565 25.830
+ESMS 55.536 13.376
+EKAH 56.300 10.619
+BGSF 67.017 -50.689
+ENBO 67.269 14.365
+EPWA 52.166 20.967
+EPKK 50.078 19.785
+LKPR 50.101 14.260
+LHBP 47.439 19.262
+LROP 44.572 26.102
+LBSF 42.695 23.406
+LGAV 37.936 23.945
+LGTS 40.520 22.971
+LTFM 41.275 28.752
+LTAI 36.899 30.800
+LTFJ 40.899 29.309
+LTBA 40.976 28.814
+LTAC 40.128 32.995
+LJLJ 46.224 14.457
+LDZA 45.743 16.069
+LDSP 43.539 16.298
+LDDU 42.561 18.268
+LWSK 41.962 21.621
+LYBE 44.818 20.309
+LATI 41.415 19.721
+LCLK 34.875 33.625
+LCPH 34.718 32.486
+LMML 35.858 14.477
+EVRA 56.924 23.971
+EETN 59.413 24.833
+EYVI 54.634 25.286
+UKBB 50.345 30.895
+UUEE 55.973 37.415
+UUDD 55.409 37.906
+ULLI 59.800 30.263
+UUWW 55.591 37.261
+LGIR 35.340 25.180
+LGRP 36.405 28.086
+LGKR 39.602 19.912
+LGSA 35.532 24.150
+LGSR 36.399 25.479
+LGMK 37.435 25.348
+LGKO 36.793 27.092
+LDPL 44.893 13.922
+LDRI 45.217 14.570
+LDZD 44.108 15.347
+LQSA 43.825 18.331
+LKTB 49.151 16.694
+LZIB 48.170 17.213
+LUKK 46.928 28.931
+LRCL 46.785 23.686
+LRTR 45.810 21.338
+LBBG 42.570 27.515
+LBWN 43.232 27.825
+EPGD 54.378 18.466
+EPWR 51.103 16.886
+EPPO 52.421 16.826
+USSS 56.743 60.803
+UNNT 55.013 82.651
+UHWW 43.399 132.148
+UHHH 48.528 135.188
+UIII 52.268 104.389
+UEEE 62.093 129.771
+UMMS 53.882 28.031
+UTSS 39.701 66.984
+UTAA 37.987 58.361
+UMKK 54.890 20.593
+OMDB 25.253 55.366
+OMAA 24.433 54.651
+OMSJ 25.329 55.517
+OMDW 24.896 55.161
+OTHH 25.273 51.608
+OTBD 25.113 51.320
+OBBI 26.271 50.633
+OKBK 29.227 47.969
+OERK 24.958 46.699
+OEJN 21.680 39.157
+OEMA 24.553 39.705
+OEDF 26.471 49.798
+OOMS 23.593 58.284
+OJAI 31.723 35.993
+OLBA 33.821 35.488
+LLBG 32.011 34.887
+OIIE 35.416 51.152
+ORBI 33.263 44.234
+HECA 30.122 31.406
+HEGN 27.178 33.799
+HESH 27.977 34.395
+HEMA 25.558 34.584
+FAOR -26.139 28.246
+FACT -33.965 18.602
+FALE -29.614 31.120
+HAAB 8.978 38.799
+HKJK -1.319 36.928
+DNMM 6.577 3.321
+DNAA 9.007 7.263
+GMMN 33.367 -7.590
+GMME 34.051 -6.752
+GMAD 30.325 -9.413
+GMMX 31.607 -8.036
+DTTA 36.851 10.227
+DTMB 35.758 10.754
+DAAG 36.691 3.215
+HTDA -6.878 39.203
+FMEE -20.887 55.510
+FIMP -20.430 57.683
+FSIA -4.674 55.522
+FMMI -18.797 47.479
+GOBD 14.670 -17.073
+DGAA 5.605 -0.167
+DIAP 5.261 -3.926
+DBBB 6.357 2.384
+FNLU -8.858 13.231
+FZAA -4.386 15.446
+FCBB -4.252 15.253
+HRYR -1.969 30.139
+HUEN 0.042 32.443
+FVHA -17.932 31.093
+FQMA -25.919 32.573
+FWKI -13.789 33.781
+FLKK -15.331 28.453
+FBSK -24.555 25.918
+FYWH -22.480 17.471
+GVAC 16.741 -22.949
+HSSS 15.592 32.553
+HDAM 11.547 43.159
+VHHH 22.309 113.915
+VMMC 22.149 113.592
+RJTT 35.553 139.781
+RJAA 35.765 140.386
+RJBB 34.427 135.244
+RJGG 34.858 136.805
+RJCC 42.775 141.692
+RJFF 33.586 130.451
+ROAH 26.196 127.646
+RKSI 37.469 126.451
+RKSS 37.558 126.791
+RKPC 33.511 126.493
+ZBAA 40.080 116.585
+ZBAD 39.509 116.411
+ZBTJ 39.124 117.346
+ZSPD 31.143 121.805
+ZSSS 31.198 121.336
+ZSHC 30.230 120.434
+ZSNJ 31.742 118.862
+ZSQD 36.266 120.374
+ZSAM 24.544 118.128
+ZGGG 23.392 113.299
+ZGSZ 22.639 113.811
+ZHHH 30.784 114.208
+ZUUU 30.579 103.947
+ZUCK 29.719 106.642
+ZPPP 25.101 102.929
+ZLXY 34.447 108.752
+ZYTX 41.638 123.484
+RCTP 25.077 121.233
+WSSS 1.364 103.992
+WMKK 2.746 101.710
+WMKP 5.297 100.277
+WBKK 5.938 116.051
+VTBS 13.690 100.750
+VTBD 13.913 100.607
+VTSP 8.113 98.317
+VTCC 18.767 98.963
+WIII -6.126 106.656
+WADD -8.748 115.167
+WARR -7.380 112.787
+VIDP 28.556 77.100
+VABB 19.089 72.868
+VOBL 13.199 77.706
+VOMM 12.990 80.169
+VECC 22.654 88.447
+VAAH 23.077 72.634
+VOCI 10.152 76.402
+VOHS 17.240 78.429
+VOGO 15.381 73.831
+VIAR 31.710 74.797
+VCBI 7.180 79.884
+VRMM 4.192 73.529
+VGHS 23.843 90.398
+VNKT 27.696 85.359
+OPKC 24.907 67.161
+OPLA 31.522 74.404
+OPIS 33.549 72.826
+OAKB 34.566 69.212
+RPLL 14.509 121.020
+RPVM 10.307 123.979
+VVTS 10.819 106.652
+VVNB 21.221 105.807
+VLVT 17.988 102.563
+VDPP 11.547 104.844
+VYYY 16.907 96.133
+UAAA 43.352 77.040
+UACC 51.022 71.467
+UTTT 41.258 69.281
+UTDD 38.543 68.825
+UBBB 40.467 50.047
+UGTB 41.669 44.954
+UDYZ 40.147 44.396
+KJFK 40.640 -73.779
+KEWR 40.693 -74.169
+KLGA 40.777 -73.874
+KBOS 42.364 -71.005
+KIAD 38.944 -77.456
+KDCA 38.852 -77.038
+KORD 41.978 -87.905
+KMDW 41.786 -87.752
+KATL 33.637 -84.428
+KMIA 25.795 -80.287
+KFLL 26.073 -80.153
+KMCO 28.429 -81.309
+KDFW 32.897 -97.038
+KDAL 32.847 -96.852
+KIAH 29.984 -95.341
+KHOU 29.645 -95.279
+KDEN 39.862 -104.673
+KLAX 33.942 -118.408
+KSFO 37.619 -122.375
+KSEA 47.450 -122.309
+KLAS 36.080 -115.152
+KPHX 33.434 -112.012
+KMSP 44.882 -93.222
+KDTW 42.212 -83.353
+KPHL 39.872 -75.241
+KCLT 35.214 -80.943
+KSAN 32.734 -117.190
+KPDX 45.589 -122.595
+KSLC 40.788 -111.978
+KBWI 39.175 -76.668
+KMSY 29.993 -90.258
+KTPA 27.975 -82.533
+KSJC 37.363 -121.929
+KOAK 37.721 -122.221
+KBNA 36.124 -86.678
+KRDU 35.878 -78.787
+KPIT 40.491 -80.233
+KCLE 41.412 -81.850
+KMCI 39.298 -94.714
+KSTL 38.749 -90.370
+KAUS 30.195 -97.670
+KSAT 29.534 -98.470
+KSMF 38.695 -121.591
+KCVG 39.049 -84.668
+KIND 39.717 -86.294
+KCMH 39.998 -82.892
+KMKE 42.947 -87.897
+KJAX 30.494 -81.688
+KRSW 26.536 -81.755
+KPBI 26.683 -80.096
+KOKC 35.393 -97.601
+KABQ 35.040 -106.609
+KELP 31.807 -106.378
+KTUS 32.116 -110.941
+KONT 34.056 -117.601
+KSNA 33.676 -117.868
+KBUR 34.201 -118.359
+PHNL 21.318 -157.922
+PHKO 19.739 -156.046
+PANC 61.174 -149.996
+CYYZ 43.677 -79.631
+CYTZ 43.627 -79.396
+CYUL 45.471 -73.741
+CYVR 49.195 -123.184
+CYYC 51.114 -114.020
+CYOW 45.323 -75.669
+CYEG 53.310 -113.580
+CYWG 49.910 -97.239
+CYHZ 44.881 -63.509
+CYQB 46.791 -71.393
+CYYT 47.619 -52.752
+CYQX 48.937 -54.568
+CYXE 52.171 -106.700
+CYYJ 48.647 -123.426
+MMMX 19.436 -99.072
+MMUN 21.037 -86.877
+MMTJ 32.541 -116.970
+MMGL 20.522 -103.311
+MMMY 25.778 -100.107
+MMPR 20.680 -105.254
+MMSD 23.152 -109.721
+MGGT 14.583 -90.527
+MSLP 13.441 -89.056
+MHTG 14.061 -87.217
+MNMG 12.141 -86.168
+MPTO 9.071 -79.383
+MROC 9.994 -84.209
+MKJP 17.936 -76.778
+MKJS 18.504 -77.913
+MYNN 25.039 -77.466
+MWCR 19.293 -81.358
+TXKF 32.364 -64.679
+TNCM 18.041 -63.109
+TJSJ 18.439 -66.002
+TIST 18.337 -64.973
+MDPC 18.567 -68.363
+MDSD 18.430 -69.668
+MUHA 22.989 -82.409
+TBPB 13.075 -59.493
+TTPP 10.596 -61.337
+TAPA 17.137 -61.793
+TLPL 13.733 -60.953
+TGPY 12.004 -61.786
+TKPK 17.311 -62.719
+TFFR 16.265 -61.532
+TFFF 14.591 -61.003
+BGGH 64.191 -51.678
+SKBO 4.702 -74.147
+SKCL 3.543 -76.382
+SKMD 6.164 -75.423
+SKCG 10.443 -75.513
+SPJC -12.022 -77.114
+SPQU -16.341 -71.583
+SPZO -13.536 -71.939
+SEQM 0.113 -78.358
+SEGU -2.157 -79.884
+SCEL -33.393 -70.786
+SAEZ -34.822 -58.536
+SAME -32.832 -68.793
+SACO -31.324 -64.208
+SAWH -54.843 -68.296
+SBGR -23.432 -46.469
+SBSP -23.626 -46.656
+SBKP -23.007 -47.135
+SBGL -22.810 -43.250
+SBBR -15.871 -47.918
+SBSV -12.911 -38.331
+SBRF -8.126 -34.923
+SBPA -29.994 -51.171
+SBFZ -3.776 -38.533
+SBCF -19.624 -43.972
+SBCT -25.532 -49.176
+SBFL -27.670 -48.548
+SUMU -34.838 -56.031
+SLLP -16.514 -68.192
+SVMI 10.603 -66.991
+SMJP 5.453 -55.188
+SYCJ 6.499 -58.254
+SGAS -25.240 -57.519
+YSSY -33.946 151.177
+YMML -37.673 144.843
+YBBN -27.384 153.117
+YPPH -31.940 115.967
+YPAD -34.945 138.531
+YSCB -35.307 149.195
+YMHB -42.836 147.510
+YBCG -28.164 153.505
+YPDN -12.415 130.877
+YBCS -16.886 145.755
+NZAA -37.008 174.792
+NZWN -41.327 174.805
+NZCH -43.489 172.532
+NZQN -45.021 168.739
+NZDN -45.928 170.198
+NFFN -17.755 177.443
+NTAA -17.557 -149.611
+NWWW -22.015 166.213
+NSFA -13.830 -172.008
+PGUM 13.484 144.797
+AYPY -9.443 147.220
+`;
+  var AIRPORTS = {}, customAp = {}, LS_AP = "flugbuch.airports";
+  AP_DATA.split("\n").forEach(function (ln) {
+    var p = ln.trim().split(/\s+/);
+    if (p.length === 3) AIRPORTS[p[0]] = [parseFloat(p[1]), parseFloat(p[2])];
+  });
+  function airport(code) { return customAp[code] || AIRPORTS[code] || null; }
+  function sunElev(ms, lat, lon) {
+    var d = ms / 86400000 + 2440587.5 - 2451545.0, r = Math.PI / 180;
+    var L = (280.460 + 0.9856474 * d) % 360, g = ((357.528 + 0.9856003 * d) % 360) * r;
+    var lam = (L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * r;
+    var eps = (23.439 - 0.0000004 * d) * r;
+    var dec = Math.asin(Math.sin(eps) * Math.sin(lam));
+    var ra = Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam));
+    var gmst = (280.46061837 + 360.98564736629 * d) % 360;
+    var H = (gmst + lon) * r - ra, phi = lat * r;
+    return Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H)) / r;
+  }
+  function gc(a, b, f) {
+    var r = Math.PI / 180, p1 = a[0] * r, l1 = a[1] * r, p2 = b[0] * r, l2 = b[1] * r;
+    var dd = 2 * Math.asin(Math.sqrt(Math.pow(Math.sin((p2 - p1) / 2), 2) + Math.cos(p1) * Math.cos(p2) * Math.pow(Math.sin((l2 - l1) / 2), 2)));
+    if (dd < 1e-9 || Math.sin(dd) < 1e-9) return a;
+    var A = Math.sin((1 - f) * dd) / Math.sin(dd), B = Math.sin(f * dd) / Math.sin(dd);
+    var x = A * Math.cos(p1) * Math.cos(l1) + B * Math.cos(p2) * Math.cos(l2);
+    var y = A * Math.cos(p1) * Math.sin(l1) + B * Math.cos(p2) * Math.sin(l2);
+    var z = A * Math.sin(p1) + B * Math.sin(p2);
+    return [Math.atan2(z, Math.sqrt(x * x + y * y)) / r, Math.atan2(y, x) / r];
+  }
+  function computeNight(date, from, to, off, on) {
+    var a = airport(from), b = airport(to), miss = [];
+    if (!a) miss.push(from);
+    if (!b && to !== from) miss.push(to);
+    if (miss.length) return { status: "missing", codes: miss };
+    b = b || a;
+    var blk = minutes(off, on);
+    if (!blk) return { status: "incomplete" };
+    var dp = date.split("-").map(Number), tp = off.split(":").map(Number);
+    var t0 = Date.UTC(dp[0], dp[1] - 1, dp[2], tp[0], tp[1]), night = 0;
+    for (var i = 0; i < blk; i++) {
+      var pos = gc(a, b, (i + 0.5) / blk);
+      if (sunElev(t0 + (i + 0.5) * 60000, pos[0], pos[1]) < -6) night++;
+    }
+    return { status: "ok", minutes: night };
+  }
+  function updateNight() {
+    var from = $("f-from").value.trim().toUpperCase(), to = $("f-to").value.trim().toUpperCase();
+    var add = $("night-add"), msg = $("night-msg");
+    add.innerHTML = "";
+    if (from.length !== 4 || to.length !== 4 || !$("f-date").value || !$("f-off").value || !$("f-on").value) { msg.textContent = NIGHT_INFO; return; }
+    var r = computeNight($("f-date").value, from, to, $("f-off").value, $("f-on").value);
+    if (r.status === "ok") {
+      $("t-night").value = r.minutes ? fmt(r.minutes) : "";
+      msg.textContent = "Nachtzeit berechnet: " + fmt(r.minutes) + ". Grundlage ist die Blockzeit auf der Grosskreisroute bei gleichmässiger Geschwindigkeit, ein Näherungswert.";
+    } else if (r.status === "missing") {
+      $("t-night").value = "";
+      msg.textContent = "Für " + r.codes.join(" und ") + " fehlen die Koordinaten. Gib sie als Breite, Länge in Dezimalgrad ein, zum Beispiel 47.4647, 8.5492. Danach wird die Nachtzeit berechnet.";
+      add.innerHTML = r.codes.map(function (code) {
+        return "<label>" + esc(code) + '<input type="text" data-ac="' + esc(code) + '" placeholder="47.4647, 8.5492" inputmode="decimal"></label>';
+      }).join("") + '<button type="button" class="small primary" id="ac-save">Koordinaten speichern</button>';
+    } else { msg.textContent = NIGHT_INFO; }
+  }
+  async function saveAirports(ev) {
+    if (!ev.target.closest("#ac-save")) return;
+    var bad = false, found = {};
+    document.querySelectorAll("#night-add [data-ac]").forEach(function (el) {
+      var p = el.value.trim().split(/[\s,;]+/).map(parseFloat);
+      if (p.length === 2 && isFinite(p[0]) && isFinite(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180) found[el.getAttribute("data-ac")] = p; else bad = true;
+    });
+    if (bad) { setMsg("Koordinaten bitte als Breite, Länge in Dezimalgrad angeben, zum Beispiel 47.4647, 8.5492."); return; }
+    Object.keys(found).forEach(function (k) { customAp[k] = found[k]; });
+    try {
+      if (db) await db.doc("settings/airports").set({ list: customAp });
+      else localStorage.setItem(LS_AP, JSON.stringify(customAp));
+      setMsg("Koordinaten gespeichert.", true);
+    } catch (e) { setMsg(errText(e)); }
+    applyAuto();
+  }
+
+  /* Pilotendaten */
+  var profile = { name: "", lic: "" };
+  async function saveProfile() {
+    profile = { name: $("p-name").value.trim(), lic: $("p-lic").value.trim() };
+    try {
+      if (db) await db.doc("settings/profile").set(profile);
+      else localStorage.setItem(LS_PROFILE, JSON.stringify(profile));
+    } catch (e) { setMsg(errText(e)); }
+  }
+  $("p-name").addEventListener("change", saveProfile);
+  $("p-lic").addEventListener("change", saveProfile);
+
+  /* Ereignisse */
+  $("f-off").addEventListener("input", applyAuto);
+  $("f-on").addEventListener("input", applyAuto);
+  $("funcs").addEventListener("change", applyAuto);
+  $("crews").addEventListener("change", function () {
+    crewVis();
+    if (funcAuto) setRadio("func", "copi");
+    applyAuto();
+  });
+  FUNCS.forEach(function (k) { $("t-" + k).addEventListener("input", function () { funcAuto = false; }); });
+  $("t-ifr").addEventListener("input", function () { ifrAuto = false; });
+  $("t-night").addEventListener("input", function () { nightAuto = false; });
+  ["f-date", "f-from", "f-to"].forEach(function (id) { $(id).addEventListener("input", applyAuto); });
+  $("night-calc").addEventListener("click", function () { nightAuto = true; applyAuto(); });
+  $("night-add").addEventListener("click", saveAirports);
+  $("q").addEventListener("input", render);
+  $("period").addEventListener("change", renderStats);
+
+  $("f").addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    var r = collect();
+    if (r.err) { setMsg(r.err); return; }
+    var f = r.f;
+    var prev = editingId ? flights.find(function (x) { return x.id === editingId; }) : null;
+    if (prev && prev.example) f.example = true;
+    $("submit").disabled = true;
+    try {
+      await put(f);
+      var wasEdit = !!editingId;
+      resetForm(); setMsg(wasEdit ? "Änderungen gespeichert." : "Flug gespeichert.", true);
+      render();
+    } catch (e) { setMsg(errText(e)); }
+    $("submit").disabled = false;
+  });
+  $("cancel").addEventListener("click", function () { resetForm(); render(); });
+
+  $("list").addEventListener("click", async function (ev) {
+    var b = ev.target.closest("button"); if (!b) return;
+    if (b.dataset.edit) {
+      var f = flights.find(function (x) { return x.id === b.dataset.edit; }); if (!f) return;
+      loadForm(f); render();
+      $("formbox").open = true;
+      $("f").scrollIntoView({ block: "start", behavior: "smooth" });
+    } else if (b.dataset.ask) { confirmId = b.dataset.ask; render(); }
+    else if (b.dataset.keep) { confirmId = null; render(); }
+    else if (b.dataset.del) {
+      var id = b.dataset.del; confirmId = null;
+      try { await remove(id); if (editingId === id) resetForm(); render(); }
+      catch (e) { setMsg(errText(e)); }
+    }
+  });
+
+  $("rm-examples").addEventListener("click", async function () {
+    var ex = flights.filter(function (f) { return f.example; });
+    try { for (var i = 0; i < ex.length; i++) { await remove(ex[i].id); } render(); }
+    catch (e) { setMsg(errText(e)); }
+  });
+
+  /* Export */
+  $("export").addEventListener("click", async function () {
+    if (!downloads) return;
+    var q = function (v) { v = String(v == null ? "" : v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var rows = [["Datum (UTC)", "Muster", "Kennzeichen", "Von", "Nach", "Off (UTC)", "On (UTC)", "Block (min)", "PIC (min)", "COPI (min)", "Dual (min)", "Solo (min)", "Nacht (min)", "IFR (min)", "Landungen Tag", "Landungen Nacht", "Crew", "Name PIC", "Crew 2", "Rolle Crew 2", "Crew 3", "Rolle Crew 3", "PAX", "Fuel Burn (t)", "Anflüge", "Bemerkung"]];
+    flights.slice().sort(asc).forEach(function (f) {
+      var l = ldgs(f);
+      rows.push([f.date, f.type, f.reg, f.from, f.to, f.off, f.on, n(f.minutes), n(f.pic), n(f.copi), n(f.dual), n(f.solo), n(f.night), n(f.ifr), l[0], l[1], f.crew === 3 ? 3 : 2, f.picName, f.crew2, f.crew2Role, f.crew3, f.crew3Role, n(f.pax), ft(f.fuel), apprText(f, true), f.note]);
+    });
+    var csv = "﻿" + rows.map(function (r) { return r.map(q).join(";"); }).join("\r\n");
+    try { await downloads.save({ filename: "flugbuch.csv", data: csv }); setMsg("CSV bereit.", true); }
+    catch (e) { if (!e || e.code !== "declined") setMsg("Export nicht möglich."); }
+  });
+
+  function buildPdf() {
+    var J = window.jspdf && window.jspdf.jsPDF;
+    if (!J) return null;
+    var rows = flights.slice().sort(asc);
+    var doc = new J({ orientation: "landscape", unit: "mm", format: "a4" });
+    var RPP = 8, ROW = 15, TR = 6.5, X0 = 10, W = 277, TOP = 21, HA = 8, HB = 6;
+    var rowsTop = TOP + HA + HB, rowsEnd = rowsTop + RPP * ROW, totEnd = rowsEnd + 3 * TR;
+    var sheets = Math.max(1, Math.ceil(rows.length / RPP));
+    var now = new Date().toLocaleDateString("de-CH");
+    var p2 = function (x) { return (x < 10 ? "0" : "") + x; };
+    var ptype = function (f) { return f.pilotType === "se" || f.pilotType === "me" ? f.pilotType : "mp"; };
+    var SUMK = ["se", "me", "mp", "blk", "ld", "ln", "night", "ifr", "pic", "copi", "dual", "instr"];
+
+    function cells(f) {
+      var l = ldgs(f), t = ptype(f), b = n(f.minutes), d = parseDate(f.date), rem = [];
+      if (f.crew === 3) rem.push("Enlarged crew");
+      var oc = crewOthers(f).join(", ");
+      if (oc) rem.push(oc);
+      if (n(f.solo) > 0) rem.push("Solo " + fmt(f.solo));
+      var ap = apprText(f, true); if (ap) rem.push(ap);
+      if (n(f.pax) > 0) rem.push(f.pax + " PAX");
+      if (n(f.fuel) > 0) rem.push(ft(f.fuel) + " t");
+      if (f.note) rem.push(f.note);
+      return {
+        dd: p2(d.getDate()), mm: p2(d.getMonth() + 1), dp: f.from, dt: f.off, ap: f.to, at: f.on,
+        mk: f.type || "", rg: f.reg || "",
+        se: t === "se" ? b : 0, me: t === "me" ? b : 0, mp: t === "mp" ? b : 0, blk: b,
+        npic: f.picName || "", ld: l[0], ln: l[1],
+        night: n(f.night), ifr: n(f.ifr), pic: n(f.pic) + n(f.solo), copi: n(f.copi), dual: n(f.dual), instr: 0,
+        rem: rem.join(" | ")
+      };
+    }
+    function zero() { var z = {}; SUMK.forEach(function (k) { z[k] = 0; }); return z; }
+    function sumOf(list) {
+      var s = zero();
+      list.forEach(function (f) { var c = cells(f); SUMK.forEach(function (k) { s[k] += c[k]; }); });
+      return s;
+    }
+    function yearLabel(chunk) {
+      var ys = [];
+      chunk.forEach(function (f) { var y = String(parseDate(f.date).getFullYear()); if (ys.indexOf(y) < 0) ys.push(y); });
+      return "Year: " + (ys.length ? ys.join("/") : "");
+    }
+
+    var SIDES = [
+      { name: "left page", labelsLeft: true, groups: [
+        { t: function (ch) { return "1 Date\n" + yearLabel(ch); }, cols: [{ k: "dd", s: "dd", w: 9 }, { k: "mm", s: "mm", w: 9 }] },
+        { t: "2 Departure", cols: [{ k: "dp", s: "Place", w: 15 }, { k: "dt", s: "Time", w: 12 }] },
+        { t: "3 Arrival", cols: [{ k: "ap", s: "Place", w: 15 }, { k: "at", s: "Time", w: 12 }] },
+        { t: "4 Aircraft", cols: [{ k: "mk", s: "Make, Model, Variant", w: 26, al: "l" }, { k: "rg", s: "Registration", w: 20 }] },
+        { t: "5 Single Pilot Time", cols: [{ k: "se", s: "SE", w: 14, kind: "tm", sum: true }, { k: "me", s: "ME", w: 14, kind: "tm", sum: true }] },
+        { t: "Multi Pilot Time", span: true, cols: [{ k: "mp", s: "", w: 17, kind: "tm", sum: true }] },
+        { t: "6 Total Time of Flight", span: true, cols: [{ k: "blk", s: "", w: 17, kind: "tm", sum: true }] },
+        { t: "7 Name PIC", span: true, cols: [{ k: "npic", s: "", w: 38, al: "l" }] },
+        { t: "8 Landings", cols: [{ k: "ld", s: "Day", w: 11, kind: "n", sum: true }, { k: "ln", s: "Night", w: 11, kind: "n", sum: true }] }
+      ] },
+      { name: "right page", labelsLeft: false, groups: [
+        { t: "9 Operational Condition Time", cols: [{ k: "night", s: "Night", w: 22, kind: "tm", sum: true }, { k: "ifr", s: "IFR", w: 22, kind: "tm", sum: true }] },
+        { t: "10 Pilot Function Time", cols: [{ k: "pic", s: "PIC", w: 22, kind: "tm", sum: true }, { k: "copi", s: "Copi", w: 22, kind: "tm", sum: true }, { k: "dual", s: "Dual", w: 22, kind: "tm", sum: true }, { k: "instr", s: "Instructor", w: 22, kind: "tm", sum: true }] },
+        { t: "12 Remarks and Endorsements", cols: [{ k: "rem", s: "Name (Blockletters) and Signature", w: 145, al: "l" }] }
+      ] }
+    ];
+
+    function drawSide(side, chunk, cur, prev, tot, sheetNo) {
+      var sumW = 0;
+      side.groups.forEach(function (g) { g.cols.forEach(function (c) { sumW += c.w; }); });
+      var sc = W / sumW, x = X0, all = [];
+      side.groups.forEach(function (g) {
+        g.x0 = x;
+        g.cols.forEach(function (c) { c.x0 = x; c.cw = c.w * sc; x += c.cw; all.push(c); });
+        g.x1 = x;
+      });
+
+      doc.setTextColor(20, 30, 50);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+      doc.text("Pilot Logbook - " + side.name, X0, 11);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+      doc.text("Name: " + (profile.name || "-") + "     Licence No.: " + (profile.lic || "-"), X0, 16.5);
+      doc.text("Sheet " + sheetNo + " / " + sheets, X0 + W, 11, { align: "right" });
+      doc.text("Times in UTC", X0 + W, 16.5, { align: "right" });
+
+      doc.setFillColor(228, 233, 240);
+      doc.rect(X0, TOP, W, HA + HB, "F");
+
+      /* Kopfzeilen */
+      side.groups.forEach(function (g) {
+        var gw = g.x1 - g.x0;
+        var label = typeof g.t === "function" ? g.t(chunk) : g.t;
+        doc.setFont("helvetica", "bold"); doc.setFontSize(6.3);
+        var lines = [];
+        label.split("\n").forEach(function (part) { lines = lines.concat(doc.splitTextToSize(part, gw - 2)); });
+        var hh = g.span ? HA + HB : HA, lh = 2.7;
+        var y0 = TOP + (hh - lines.length * lh) / 2 + 2.1;
+        lines.forEach(function (ln, i) { doc.text(ln, g.x0 + gw / 2, y0 + i * lh, { align: "center" }); });
+        if (!g.span) {
+          doc.setFont("helvetica", "normal"); doc.setFontSize(6);
+          g.cols.forEach(function (c) {
+            var sl = doc.splitTextToSize(c.s, c.cw - 1.5);
+            var ys = TOP + HA + (HB - sl.length * 2.5) / 2 + 2;
+            sl.forEach(function (ln, i) { doc.text(ln, c.x0 + c.cw / 2, ys + i * 2.5, { align: "center" }); });
+          });
+        }
+      });
+
+      /* Linien */
+      doc.setDrawColor(90, 100, 115); doc.setLineWidth(0.25);
+      doc.line(X0, TOP, X0 + W, TOP);
+      doc.line(X0, rowsTop, X0 + W, rowsTop);
+      for (var r = 1; r <= RPP; r++) doc.line(X0, rowsTop + r * ROW, X0 + W, rowsTop + r * ROW);
+      side.groups.forEach(function (g) {
+        doc.line(g.x0, TOP, g.x0, rowsEnd);
+        if (!g.span) doc.line(g.x0, TOP + HA, g.x1, TOP + HA);
+        g.cols.forEach(function (c, i) { if (i > 0) doc.line(c.x0, TOP + HA, c.x0, rowsEnd); });
+      });
+      doc.line(X0 + W, TOP, X0 + W, rowsEnd);
+
+      /* Einträge */
+      doc.setTextColor(20, 30, 50); doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
+      chunk.forEach(function (f, ri) {
+        var y = rowsTop + ri * ROW, d = cells(f);
+        all.forEach(function (c) {
+          var v = d[c.k], txt;
+          if (c.kind === "tm") txt = v > 0 ? fmt(v) : "";
+          else if (c.kind === "n") txt = v > 0 ? String(v) : "";
+          else txt = v == null ? "" : String(v);
+          if (!txt) return;
+          if (c.al === "l") {
+            doc.setFontSize(7);
+            var lines = doc.splitTextToSize(txt, c.cw - 2), max = 4;
+            if (lines.length > max) { lines = lines.slice(0, max); lines[max - 1] = lines[max - 1].replace(/.{0,3}$/, "..."); }
+            var lh = 3, y0 = y + (ROW - lines.length * lh) / 2 + 2.3;
+            lines.forEach(function (ln, i) { doc.text(ln, c.x0 + 1, y0 + i * lh); });
+            doc.setFontSize(7.5);
+          } else {
+            doc.text(txt, c.x0 + c.cw / 2, y + ROW / 2 + 1, { align: "center" });
+          }
+        });
+      });
+
+      /* Summen */
+      var labs = ["Total this Page", "Total previous pages", "Total Time"], sets = [cur, prev, tot];
+      doc.setFont("helvetica", "bold"); doc.setFontSize(7);
+      all.forEach(function (c) {
+        if (!c.sum) return;
+        for (var t = 0; t < 3; t++) {
+          var y = rowsEnd + t * TR, v = sets[t][c.k];
+          doc.rect(c.x0, y, c.cw, TR);
+          doc.text(c.kind === "n" ? String(v) : fmt(v), c.x0 + c.cw / 2, y + 4.4, { align: "center" });
+        }
+      });
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7);
+      if (side.labelsLeft) {
+        var fs = null; all.forEach(function (c) { if (c.sum && fs === null) fs = c.x0; });
+        labs.forEach(function (lb, t) { doc.text(lb, fs - 2, rowsEnd + t * TR + 4.4, { align: "right" }); });
+      } else {
+        var xr = all[all.length - 1].x0 + 2;
+        labs.forEach(function (lb, t) { doc.text(lb, xr, rowsEnd + t * TR + 4.4); });
+        doc.text("I certify that the entries in this log are true. (Pilot's signature)", xr, totEnd + 8);
+        doc.line(xr, totEnd + 17, xr + 95, totEnd + 17);
+      }
+
+      doc.setTextColor(90, 100, 115); doc.setFontSize(6.5);
+      doc.text("Created " + now + " - times in UTC", X0, 204);
+    }
+
+    var prev = zero();
+    for (var s = 0; s < sheets; s++) {
+      var chunk = rows.slice(s * RPP, (s + 1) * RPP);
+      var cur = sumOf(chunk), tot = zero();
+      SUMK.forEach(function (k) { tot[k] = prev[k] + cur[k]; });
+      if (s > 0) doc.addPage();
+      drawSide(SIDES[0], chunk, cur, prev, tot, s + 1);
+      doc.addPage();
+      drawSide(SIDES[1], chunk, cur, prev, tot, s + 1);
+      prev = tot;
+    }
+    return doc;
+  }
+
+  $("export-pdf").addEventListener("click", async function () {
+    if (!downloads) return;
+    try {
+      var doc = buildPdf();
+      if (!doc) { setMsg("Die PDF-Bibliothek konnte nicht geladen werden. Lade die Seite neu und versuche es erneut."); return; }
+      await downloads.save({ filename: "Flugbuch.pdf", data: doc.output("arraybuffer") });
+      setMsg("PDF bereit.", true);
+    } catch (e) { if (!e || e.code !== "declined") setMsg("PDF-Export nicht möglich."); }
+  });
+
+  /* Backup */
+  $("backup").addEventListener("click", async function () {
+    var data = JSON.stringify({ app: "flugbuch", version: 1, flights: flights, profile: profile, airports: customAp }, null, 1);
+    try { await downloads.save({ filename: "flugbuch-backup.json", data: data }); setMsg("Backup bereit.", true); }
+    catch (e) { if (!e || e.code !== "declined") setMsg("Backup nicht möglich."); }
+  });
+  $("restore-btn").addEventListener("click", function () { $("restore").click(); });
+  $("restore").addEventListener("change", async function (ev) {
+    var file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    try {
+      var d = JSON.parse(await file.text());
+      if (!d || !Array.isArray(d.flights)) throw new Error("format");
+      var map = {};
+      flights.forEach(function (f) { map[f.id] = f; });
+      var added = 0;
+      d.flights.forEach(function (f) { if (f && f.id && f.date && f.from && f.to) { map[f.id] = f; added++; } });
+      flights = Object.keys(map).map(function (k) { return map[k]; });
+      localSave();
+      try {
+        if (d.profile) { profile = { name: d.profile.name || "", lic: d.profile.lic || "" }; $("p-name").value = profile.name; $("p-lic").value = profile.lic; localStorage.setItem(LS_PROFILE, JSON.stringify(profile)); }
+        if (d.airports && typeof d.airports === "object") { Object.keys(d.airports).forEach(function (k) { customAp[k] = d.airports[k]; }); localStorage.setItem(LS_AP, JSON.stringify(customAp)); }
+      } catch (e2) {}
+      render(); setMsg(added + " Einträge aus dem Backup geladen.", true);
+    } catch (e) { setMsg("Diese Datei ist kein gültiges Flugbuch-Backup."); }
+    ev.target.value = "";
+  });
+
+  /* Start */
+  $("ap").innerHTML = APPR.map(function (p) {
+    return '<label>' + esc(p[1]) + '<input type="number" min="0" max="20" value="0" data-ap="' + p[0] + '"></label>';
+  }).join("");
+  resetForm();
+  render();
+
+  (async function boot() {
+    var claude = window.claude;
+    try { var dl = claude && claude.use ? await claude.use("downloads") : null; if (dl) downloads = dl; } catch (e) {}
+    try {
+      var user = claude && claude.use ? await claude.use("user") : null;
+      if (user && user.can) { var w = user.can("data.write"); if (w === false) canWrite = false; }
+    } catch (e) {}
+
+    if (db) {
+      $("store-note").textContent = "Deine Einträge liegen im Datenspeicher dieser Seite und sind auf allen Geräten verfügbar.";
+      var timer = setTimeout(function () { $("status").textContent = "Die Daten sind noch nicht erreichbar. Die Anzeige kann veraltet sein."; }, 10000);
+      db.collection("flights").onSnapshot(function (snap) {
+        flights = snap.docs.map(function (d) { var o = d.data() || {}; o.id = d.id; return o; });
+        if (!snap.metadata.fromCache) { clearTimeout(timer); $("status").textContent = ""; }
+        else if (flights.length) { $("status").textContent = ""; }
+        render();
+      }, function () { clearTimeout(timer); $("status").textContent = "Die Einträge konnten nicht geladen werden."; });
+      db.doc("settings/airports").onSnapshot(function (s) {
+        var d = s.exists ? s.data() : null;
+        customAp = (d && d.list && typeof d.list === "object") ? d.list : {};
+        if (nightAuto) updateNight();
+      }, function () {});
+      db.doc("settings/profile").onSnapshot(function (s) {
+        var d = s.exists ? s.data() : null;
+        if (d) {
+          profile = { name: d.name || "", lic: d.lic || "" };
+          if (document.activeElement !== $("p-name")) $("p-name").value = profile.name;
+          if (document.activeElement !== $("p-lic")) $("p-lic").value = profile.lic;
+        }
+      }, function () {});
+    } else {
+      try { flights = JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch (e) { flights = []; }
+      try { customAp = JSON.parse(localStorage.getItem(LS_AP) || "{}") || {}; } catch (e) { customAp = {}; }
+      try { var pr = JSON.parse(localStorage.getItem(LS_PROFILE) || "null"); if (pr) { profile = pr; $("p-name").value = pr.name || ""; $("p-lic").value = pr.lic || ""; } } catch (e) {}
+      $("status").textContent = "";
+      var lsOk = false;
+      try { localStorage.setItem("fb.t", "1"); lsOk = localStorage.getItem("fb.t") === "1"; localStorage.removeItem("fb.t"); } catch (e) {}
+      $("store-note").textContent = lsOk
+        ? "Deine Einträge werden in diesem Browser gespeichert. Sichere sie regelmässig mit „Backup“."
+        : "Achtung: Dieser Browser erlaubt hier kein Speichern. Deine Einträge gehen beim Schliessen verloren. Nutze „Backup“ nach jeder Eingabe und „Backup laden“ beim nächsten Start.";
+      render();
+    }
+  })();
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./service-worker.js').catch(function (e) {
+      console.warn('Offline-Speicherung konnte nicht aktiviert werden:', e);
+    });
+  });
+}
+</script>
+</body>
+</html>
+
+</body></html>
