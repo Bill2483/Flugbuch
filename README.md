@@ -34,3 +34,11 @@ Diese Version synchronisiert noch nicht zwischen Geräten. Die aktuelle HTML-Dat
 - Eine PWA benötigt keine 7-Tage-Xcode-Signatur.
 - Kostenloses Hosting hat eigene Nutzungsbedingungen und kann sich ändern.
 - Vor produktiver Nutzung: Backup erstellen und PDF-, Import-/Export- sowie Offline-Verhalten auf beiden Geräten testen.
+
+
+## Erweiterung: Recency (90 Tage)
+
+Die Flugmaske enthält jetzt ein Feld „Starts gesamt“ sowie die vorhandenen Felder
+„Landungen Tag“ und „Landungen Nacht“. Alle drei Felder starten standardmässig
+mit 0. Die Statistik zeigt die Summe der Starts und Landungen aus den jeweils
+letzten 90 Tagen. Die Startanzahl wird auch in den CSV-Export aufgenommen.
