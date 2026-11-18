@@ -214,10 +214,9 @@ input, textarea, select { font-size: 16px; }
       <label>Nacht<input class="hm" type="text" id="t-night" inputmode="numeric" placeholder="0:00" maxlength="7"></label>
       <label>IFR<input class="hm" type="text" id="t-ifr" inputmode="numeric" placeholder="0:00" maxlength="7"></label>
       <label>Pilotentyp (für PDF)<select id="f-pt"><option value="mp">Multi-Pilot</option><option value="se">Single-Pilot SE</option><option value="me">Single-Pilot ME</option></select></label>
-      <label>Starts gesamt<input type="number" id="f-toff" min="0" max="99" value="0"></label>
-      <label>Landungen Tag<input type="number" id="f-ld" min="0" max="99" value="0"></label>
+      <label>Landungen Tag<input type="number" id="f-ld" min="0" max="99" value="1"></label>
       <label>Landungen Nacht<input type="number" id="f-ln" min="0" max="99" value="0"></label>
-      <div class="span-all hint">Starts und Landungen sind standardmässig 0. Trage nur die tatsächlich durchgeführten Starts und Landungen ein. Die Blockzeit wird der gewählten Funktion automatisch zugewiesen. Passe die Zeiten an, wenn du nur einen Teil geflogen bist, zum Beispiel als Ablösepilot. Vorgewählt ist COPI mit der vollen Blockzeit, bei Enlarged Crew mit 2/3 der Blockzeit. IFR wird automatisch mit der vollen Blockzeit eingetragen. Der Pilotentyp bestimmt, ob die Blockzeit im PDF als Multi-Pilot- oder als Single-Pilot-Zeit (SE/ME) erscheint.</div>
+      <div class="span-all hint">Die Blockzeit wird der gewählten Funktion automatisch zugewiesen. Passe die Zeiten an, wenn du nur einen Teil geflogen bist, zum Beispiel als Ablösepilot. Vorgewählt ist COPI mit der vollen Blockzeit, bei Enlarged Crew mit 2/3 der Blockzeit. IFR wird automatisch mit der vollen Blockzeit eingetragen. Der Pilotentyp bestimmt, ob die Blockzeit im PDF als Multi-Pilot- oder als Single-Pilot-Zeit (SE/ME) erscheint.</div>
       <div class="span-all hint" id="night-wrap"><span id="night-msg"></span> <button type="button" class="small ghost" id="night-calc">Nachtzeit neu berechnen</button><div class="ac-add" id="night-add"></div></div>
 
       <div class="grp-title eyebrow">Crew</div>
@@ -498,13 +497,7 @@ input, textarea, select { font-size: 16px; }
       list = flights.filter(function (f) { return parseDate(f.date) >= cut; });
     }
     var S = stats(list);
-    var recentCut = new Date(); recentCut.setDate(recentCut.getDate() - 90); recentCut.setHours(0, 0, 0, 0);
-    var recent = flights.filter(function (f) { return parseDate(f.date) >= recentCut; });
-    var recentStarts = 0, recentLandings = 0;
-    recent.forEach(function (f) { recentStarts += n(f.takeoffs); var l = ldgs(f); recentLandings += l[0] + l[1]; });
-    var recencyHtml = '<div class="blk"><h3>Recency – letzte 90 Tage</h3>' +
-      kv([["Starts", recentStarts], ["Landungen", recentLandings]]) + '</div>';
-    if (!S.count) { $("stats").innerHTML = recencyHtml + '<div class="note">Im gewählten Zeitraum gibt es keine Flüge.</div>'; return; }
+    if (!S.count) { $("stats").innerHTML = '<div class="note">Im gewählten Zeitraum gibt es keine Flüge.</div>'; return; }
     var times = barRows([["Block", S.minutes], ["PIC", S.pic], ["COPI", S.copi], ["Dual", S.dual], ["Solo", S.solo], ["Nacht", S.night], ["IFR", S.ifr]], fmt);
     var ops = kv([
       ["Flüge", S.count],
@@ -519,7 +512,7 @@ input, textarea, select { font-size: 16px; }
     var ap = APPR.map(function (p) { return [p[2], S.appr[p[0]] || 0]; }).filter(function (r) { return r[1] > 0; });
     var apHtml = ap.length ? kv([["Anflüge gesamt", S.apprTotal]]) + barRows(ap, function (v) { return v; }) : '<div class="note">Noch keine Anflüge erfasst.</div>';
     var ac = Object.keys(S.byAc).sort(function (a, b) { return S.byAc[b] - S.byAc[a]; }).slice(0, 8).map(function (k) { return [k, S.byAc[k]]; });
-    $("stats").innerHTML = recencyHtml +
+    $("stats").innerHTML =
       '<div class="blk"><h3>Flugzeit nach Funktion</h3>' + times + "</div>" +
       '<div class="blk"><h3>Betrieb</h3>' + ops + "</div>" +
       '<div class="blk"><h3>Anflugarten</h3>' + apHtml + "</div>" +
@@ -648,7 +641,6 @@ input, textarea, select { font-size: 16px; }
       from: from, to: to, off: off, on: on, minutes: blk,
       pic: t.pic, copi: t.copi, dual: t.dual, solo: t.solo, night: t.night, ifr: t.ifr,
       pilotType: $("f-pt").value,
-      takeoffs: Math.max(0, parseInt($("f-toff").value, 10) || 0),
       ldgDay: Math.max(0, parseInt($("f-ld").value, 10) || 0), ldgNight: Math.max(0, parseInt($("f-ln").value, 10) || 0),
       crew: crew, picName: $("f-picname").value.trim(), crew2: $("f-c2").value.trim(), crew3: crew === 3 ? $("f-c3").value.trim() : "",
       crew2Role: $("f-r2").value, crew3Role: crew === 3 ? $("f-r3").value : "",
@@ -668,7 +660,6 @@ input, textarea, select { font-size: 16px; }
     $("t-night").value = n(f.night) > 0 ? fmt(f.night) : "";
     $("t-ifr").value = n(f.ifr) > 0 ? fmt(f.ifr) : "";
     var l = ldgs(f); $("f-ld").value = l[0]; $("f-ln").value = l[1];
-    $("f-toff").value = n(f.takeoffs);
     $("f-pt").value = f.pilotType || "mp";
     setRadio("crew", f.crew === 3 ? "3" : "2");
     $("f-picname").value = f.picName || ""; $("f-c2").value = f.crew2 || ""; $("f-c3").value = f.crew3 || "";
@@ -1355,10 +1346,10 @@ AYPY -9.443 147.220
   $("export").addEventListener("click", async function () {
     if (!downloads) return;
     var q = function (v) { v = String(v == null ? "" : v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    var rows = [["Datum (UTC)", "Muster", "Kennzeichen", "Von", "Nach", "Off (UTC)", "On (UTC)", "Block (min)", "PIC (min)", "COPI (min)", "Dual (min)", "Solo (min)", "Nacht (min)", "IFR (min)", "Starts", "Landungen Tag", "Landungen Nacht", "Crew", "Name PIC", "Crew 2", "Rolle Crew 2", "Crew 3", "Rolle Crew 3", "PAX", "Fuel Burn (t)", "Anflüge", "Bemerkung"]];
+    var rows = [["Datum (UTC)", "Muster", "Kennzeichen", "Von", "Nach", "Off (UTC)", "On (UTC)", "Block (min)", "PIC (min)", "COPI (min)", "Dual (min)", "Solo (min)", "Nacht (min)", "IFR (min)", "Landungen Tag", "Landungen Nacht", "Crew", "Name PIC", "Crew 2", "Rolle Crew 2", "Crew 3", "Rolle Crew 3", "PAX", "Fuel Burn (t)", "Anflüge", "Bemerkung"]];
     flights.slice().sort(asc).forEach(function (f) {
       var l = ldgs(f);
-      rows.push([f.date, f.type, f.reg, f.from, f.to, f.off, f.on, n(f.minutes), n(f.pic), n(f.copi), n(f.dual), n(f.solo), n(f.night), n(f.ifr), n(f.takeoffs), l[0], l[1], f.crew === 3 ? 3 : 2, f.picName, f.crew2, f.crew2Role, f.crew3, f.crew3Role, n(f.pax), ft(f.fuel), apprText(f, true), f.note]);
+      rows.push([f.date, f.type, f.reg, f.from, f.to, f.off, f.on, n(f.minutes), n(f.pic), n(f.copi), n(f.dual), n(f.solo), n(f.night), n(f.ifr), l[0], l[1], f.crew === 3 ? 3 : 2, f.picName, f.crew2, f.crew2Role, f.crew3, f.crew3Role, n(f.pax), ft(f.fuel), apprText(f, true), f.note]);
     });
     var csv = "﻿" + rows.map(function (r) { return r.map(q).join(";"); }).join("\r\n");
     try { await downloads.save({ filename: "flugbuch.csv", data: csv }); setMsg("CSV bereit.", true); }
